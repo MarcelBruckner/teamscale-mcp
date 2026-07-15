@@ -272,6 +272,9 @@ Neither half is the point on its own. Together they turn a generic manual into s
   The docs give the how-to, and teamscale-mcp creates and wires it.
 - 🧑‍🔧 **Us, on a customer instance**: *"Compare clone coverage across these five projects."*
   Full REST reach, with the reference at hand, across customer instances.
+- 🏗️ **Making sense of a codebase**: *"What's the architecture of my system?"*
+  teamscale-mcp queries the code, drafts a Teamscale **architecture**, and sets it up
+  in Teamscale to analyze against going forward.
 
 <br>
 
@@ -401,6 +404,36 @@ Not a mockup, but an actual conversation against a live project:
 <br/>
 
 > It's an addition, not a replacement for `ts_agent_helper`
+
+---
+
+## Future work: from **prototype** to product
+
+<div class="split">
+<div>
+
+### 🧪 Today — a prototype
+
+- A **working proof of value**, not a finished product
+- Shows how much an agent gains with Teamscale in reach: **query and act**
+  (`teamscale-mcp`) and **understand in context** (`teamscale-docs-mcp`)
+- Runs as a **sidecar**, bolted on from the outside
+
+</div>
+<div>
+
+### 🚀 Next — part of Teamscale
+
+- The value is proven; the **home is inside the product**
+- A **first-class, native** MCP capability
+- **Shipped, versioned, and supported** with Teamscale
+
+</div>
+</div>
+
+<br/>
+
+> We see a lot of **value for our customers** here, and we'd love to see this become a part of Teamscale.
 
 ---
 
