@@ -1,5 +1,4 @@
-,
-,pp00---
+---
 marp: true
 theme: default
 paginate: true
@@ -170,32 +169,6 @@ Point any MCP client at the URL, presenting your own identity:
 claude mcp add teamscale-cqse --scope user --transport http \
   https://cqse.teamscale.io/mcp \
   --header "X-Teamscale-User: bruckner@cqse.eu" \
-  --header "X-Teamscale-Token: YOUR_API_TOKEN"
-```
-
-<br>
-
-> The two headers *are* your Teamscale identity, forwarded per request.
-> Any MCP-capable client works the same way.
-
----
-
-## Connect a client with **one command**
-
-Point any MCP client at the URL, presenting your own identity:
-
-```bash
-claude mcp add teamscale-cqse --scope user --transport http \
-  https://cqse.teamscale.io/mcp \
-  --header "X-Teamscale-User: bruckner@cqse.eu" \
-  --header "X-Teamscale-Token: YOUR_API_TOKEN"
-```
-
-And add as many servers as you need:
-```bash
-claude mcp add teamscale-personal --scope user --transport http \
-  https://teamscale.marcelbruckner.com/mcp \
-  --header "X-Teamscale-User: marcel" \
   --header "X-Teamscale-Token: YOUR_API_TOKEN"
 ```
 
@@ -477,6 +450,32 @@ teamscale-mcp:
 <br>
 
 > Per-request identity arrives in the `X-Teamscale-User` / `-Token` headers, never from the environment.
+
+---
+
+## Connect multiple clients with **one command each** 
+
+Point any MCP client at the URL, presenting your own identity:
+
+```bash
+claude mcp add teamscale-cqse --scope user --transport http \
+  https://cqse.teamscale.io/mcp \
+  --header "X-Teamscale-User: bruckner@cqse.eu" \
+  --header "X-Teamscale-Token: YOUR_API_TOKEN"
+```
+
+And add as many servers as you need:
+```bash
+claude mcp add teamscale-personal --scope user --transport http \
+  https://teamscale.marcelbruckner.com/mcp \
+  --header "X-Teamscale-User: marcel" \
+  --header "X-Teamscale-Token: YOUR_API_TOKEN"
+```
+
+<br>
+
+> The two headers *are* your Teamscale identity, forwarded per request.
+> Any MCP-capable client works the same way.
 
 ---
 
