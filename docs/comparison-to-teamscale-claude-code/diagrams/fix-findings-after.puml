@@ -1,0 +1,54 @@
+@startuml fix-findings-after
+!include ../../theme.iuml
+title fix-findings — with teamscale-mcp (ts_agent_helper replaced)
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+autonumber
+
+actor "Developer" as Dev
+box "Developer workstation" $ws_bg
+    participant "Claude\n(fix-findings skill)" as Agent
+end box
+
+box "Teamscale server" $ts_bg
+    participant "teamscale-mcp\n(central sidecar)" as MCP
+    participant "Teamscale\nREST API" as TS
+end box
+
+Dev -> Agent : /teamscale:fix-findings <file>
+note over Agent : Identity = X-Teamscale-User / -Token,\nconfigured once in the MCP client.
+
+note over Agent, MCP
+  <b>Dropped:</b> the ts_agent_helper <b>.teamscale.toml</b> read.
+  The agent now supplies <b>project + branch</b> as tool
+  arguments itself — the sidecar reads no local config.
+end note
+Agent -[$tool_color,bold]> MCP : <size:15>**tool getFindings(project, uniformPath=<file>, branch)**</size>\nX-Teamscale-User + X-Teamscale-Token
+activate MCP
+MCP -> TS : GET /api/v2026.2/projects/{p}/findings/list\nAuthorization: Basic base64(user:token)
+activate TS
+TS --> MCP : findings JSON
+deactivate TS
+MCP --> Agent : findings (tool result)
+deactivate MCP
+
+opt finding type unclear
+    Agent -[$tool_color,bold]> MCP : <size:15>**tool getFindingTypeDescriptions(typeIds, scope)**</size>
+    MCP -> TS : POST /api/v2026.2/projects/{p}/finding-type-descriptors
+    TS --> MCP : type descriptions
+    MCP --> Agent : type descriptions
+end
+
+Agent -> Agent : triage by severity,\nread code, edit files to fix
+
+opt false positive / toleration (after explicit user OK)
+    Agent -[$tool_color,bold]> MCP : <size:15>**tool flagFindings(ids, type, rationale)**</size>
+    MCP -> TS : PUT /api/v2026.2/projects/{p}/findings/flagged
+    TS --> MCP : ok
+    MCP --> Agent : ok
+end
+
+Agent --> Dev : summary — fixed / tolerated / skipped
+
+@enduml

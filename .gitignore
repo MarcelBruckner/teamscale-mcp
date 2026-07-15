@@ -1,0 +1,17 @@
+# Python / uv
+**/.venv/
+**/__pycache__/
+*.pyc
+
+# Local config with secrets
+.env
+*.token
+# ...except the throwaway dev token for the seeded local Teamscale (see docker-compose.yaml).
+!api.token
+
+# Teamscale dev fixture (teamscale-data/) is committed later as a seeded throwaway
+# instance. Ignore volatile runtime dirs.
+
+# Superpowers design docs (brainstorming specs / implementation plans) — local only
+docs/superpowers/
+teamscale-data

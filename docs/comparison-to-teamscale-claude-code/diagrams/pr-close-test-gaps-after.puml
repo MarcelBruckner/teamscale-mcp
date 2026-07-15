@@ -1,0 +1,56 @@
+@startuml pr-close-test-gaps-after
+!include ../../theme.iuml
+title pr-close-test-gaps — with teamscale-mcp (ts_agent_helper replaced)
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+autonumber
+
+actor "Developer" as Dev
+
+box "Developer workstation" $ws_bg
+    participant "Claude\n(pr-close-test-gaps skill)" as Agent
+    participant "git\n(local)" as Git
+end box
+
+box "Teamscale server" $ts_bg
+    participant "teamscale-mcp\n(central sidecar)" as MCP
+    participant "Teamscale\nREST API" as TS
+end box
+
+Dev -> Agent : /teamscale:pr-close-test-gaps
+
+group Agent resolves the PR (was inside ts_agent_helper)
+    Agent -> Git : git branch --show-current
+    Git --> Agent : <branch>
+    Agent -[$tool_color,bold]> MCP : <size:15>**tool getMergeRequests(project, filter=<branch>, status=OPEN)**</size>
+    MCP -> TS : GET /api/projects/{p}/merge-requests
+    TS --> MCP : open merge requests
+    MCP --> Agent : open merge requests
+    Agent -> Agent : pick exact sourceBranch match → MR id
+    opt no matching MR
+        Agent -> Git : git symbolic-ref origin/HEAD
+        Git --> Agent : <base branch>
+    end
+end
+
+Agent -[$tool_color,bold]> MCP : <size:15>**tool getTestGaps(project, baseline, end, merge-request-mode)**</size>\nX-Teamscale-User + X-Teamscale-Token
+activate MCP
+MCP -> TS : GET /api/projects/{p}/test-gaps.csv\nAuthorization: Basic base64(user:token)
+activate TS
+TS --> MCP : test-gap data\n(uniform path, method, lines, test state)
+deactivate TS
+MCP --> Agent : test gaps (tool result)
+deactivate MCP
+
+Agent -> Agent : pick gaps to close;\ndetect test framework from existing tests
+Agent -> Agent : write tests, run them to confirm they pass
+Agent --> Dev : summary — gaps closed / skipped
+
+note over Agent, TS
+  The agent performs the PR resolution ts_agent_helper bundled.
+  Requires the Test Gap Analysis + Merge Requests tags in the tool surface.
+  Gaps still recompute server-side from CI coverage after tests are pushed.
+end note
+
+@enduml

@@ -1,0 +1,62 @@
+@startuml pr-fix-findings-after
+!include ../../theme.iuml
+title pr-fix-findings — with teamscale-mcp (ts_agent_helper replaced)
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+autonumber
+
+actor "Developer" as Dev
+
+box "Developer workstation" $ws_bg
+    participant "Claude\n(pr-fix-findings skill)" as Agent
+    participant "git\n(local)" as Git
+end box
+
+box "Teamscale server" $ts_bg
+    participant "teamscale-mcp\n(central sidecar)" as MCP
+    participant "Teamscale\nREST API" as TS
+end box
+
+Dev -> Agent : /teamscale:pr-fix-findings
+
+group Agent resolves the PR (was inside ts_agent_helper)
+    Agent -> Git : git branch --show-current
+    Git --> Agent : <branch>
+    Agent -[$tool_color,bold]> MCP : <size:15>**tool getMergeRequests(project, filter=<branch>, status=OPEN)**</size>
+    MCP -> TS : GET /api/projects/{p}/merge-requests
+    TS --> MCP : open merge requests
+    MCP --> Agent : open merge requests
+    Agent -> Agent : pick exact sourceBranch match → MR id
+    opt no matching MR
+        Agent -> Git : git symbolic-ref origin/HEAD
+        Git --> Agent : <base branch>
+    end
+end
+
+Agent -[$tool_color,bold]> MCP : <size:15>**tool getFindingChurn(mr id, or branch:HEAD vs base)**</size>\nX-Teamscale-User + X-Teamscale-Token
+activate MCP
+MCP -> TS : GET /api/projects/{p}/merge-requests/finding-churn\nAuthorization: Basic base64(user:token)
+activate TS
+TS --> MCP : findings newly added on the branch
+deactivate TS
+MCP --> Agent : new findings (tool result)
+deactivate MCP
+
+Agent -> Agent : triage, read code, edit files to fix
+
+opt false positive / toleration (after explicit user OK)
+    Agent -[$tool_color,bold]> MCP : <size:15>**tool flagFindings(ids, type, rationale)**</size>
+    MCP -> TS : PUT /api/v2026.2/projects/{p}/findings/flagged
+    TS --> MCP : ok
+    MCP --> Agent : ok
+end
+
+Agent --> Dev : summary — fixed / tolerated / skipped
+
+note over Agent, TS
+  The agent now performs the PR resolution ts_agent_helper bundled.
+  Requires the Merge Requests + Findings tags in the tool surface.
+end note
+
+@enduml

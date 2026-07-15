@@ -1,0 +1,86 @@
+' ===== Shared PlantUML theme for teamscale-mcp diagrams =====
+' The single design system for every diagram in this repo — top-level
+' (architecture, sequence, …) and the plugin-comparison set alike.
+' Teamscale / CQSE "How To" look: Futura titles · Teamscale orange (#E87722)
+' arrows · navy participants · grey lines. Included by the docs/**/*.puml files;
+' rendered to PNG by .githooks/pre-commit (and docs/regenerate.sh).
+' Note: Futura renders only where the font is installed; PlantUML falls back to a
+' default sans elsewhere, so the palette (not the font) carries the brand.
+
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Menlo
+skinparam defaultFontColor #333333
+skinparam TitleFontName Futura
+skinparam TitleFontColor #1A1A1A
+skinparam TitleFontSize 18
+
+' Generic element styling (applies to class / component / usecase / activity …)
+skinparam ArrowColor #E87722
+skinparam ArrowFontColor #333333
+skinparam BorderColor #2E3948
+skinparam roundcorner 8
+
+' Box-and-line elements used by the architecture diagram (rectangle / package /
+' database). Kept on the CQSE palette so component and sequence diagrams match.
+skinparam rectangle {
+  BorderColor #2E3948
+  BackgroundColor #EFEFEF
+  FontColor #1A1A1A
+}
+skinparam package {
+  BorderColor #999999
+  BackgroundColor #F7F7F7
+  FontColor #333333
+}
+skinparam database {
+  BorderColor #2E3948
+  BackgroundColor #EFEFEF
+  FontColor #1A1A1A
+}
+
+skinparam sequence {
+  ArrowColor #E87722
+  ArrowFontColor #333333
+  LifeLineBorderColor #999999
+  LifeLineBackgroundColor #EFEFEF
+
+  ParticipantBorderColor #2E3948
+  ParticipantBackgroundColor #2E3948
+  ParticipantFontColor #FFFFFF
+  ParticipantFontName Futura
+
+  ActorBorderColor #E87722
+  ActorBackgroundColor #EFEFEF
+  ActorFontColor #1A1A1A
+  ActorFontName Futura
+
+  GroupBorderColor #999999
+  GroupBackgroundColor #F7F7F7
+  DividerBackgroundColor #FBE3CC
+  DividerBorderColor #E87722
+}
+
+' Notes are callouts — make them stand out: highlighter-yellow fill, a thick
+' orange border, and dark bold text so they read as annotations, not chrome.
+skinparam note {
+  BackgroundColor #FFF3CD
+  BorderColor #E87722
+  BorderThickness 2
+  FontColor #1A1A1A
+  FontStyle bold
+}
+
+' Box backgrounds — give the two sides of an exchange a clear visual split:
+' cool grey for the developer/client side, warm orange tint for the Teamscale server.
+!$ws_bg = "#E6E9ED"
+!$ts_bg = "#FBE3CC"
+
+' Highlight palette — make the message that matters pop out from the plumbing.
+' Apply per-arrow, e.g.  A -[$tool_color,bold]> B : **the important call**
+' $cli_color  = magenta — a ts_agent_helper CLI call (comparison "before" world)
+' $tool_color = teal    — an MCP tool call / the primary highlighted path
+' $drop_color = red     — a dropped local call, or a rejected/error path (e.g. 401)
+!$cli_color  = "#B5179E"
+!$tool_color = "#2A9D8F"
+!$drop_color = "#D7263D"

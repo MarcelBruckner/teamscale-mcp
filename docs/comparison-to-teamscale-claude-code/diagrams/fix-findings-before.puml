@@ -1,0 +1,54 @@
+@startuml fix-findings-before
+!include ../../theme.iuml
+title fix-findings — today (ts_agent_helper CLI)
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+autonumber
+
+actor "Developer" as Dev
+
+box "Developer workstation" $ws_bg
+    participant "Claude\n(fix-findings skill)" as Agent
+    participant "ts-agent-helper\n(ts_agent_helper CLI)" as Helper
+end box
+
+box "Teamscale server" $ts_bg
+    participant "Teamscale\nREST API" as TS
+end box
+
+Dev -> Agent : /teamscale:fix-findings <file>
+Agent -[$cli_color,bold]> Helper : <size:15>**ts-agent-helper findings list <file>**</size>
+activate Helper
+Helper -[$drop_color,bold]> Helper : <size:15>**read .teamscale.toml**</size>\n(project id + branch);\ncreds from env / ~/.teamscale-dev.args
+Helper -> TS : GET /api/v2026.2/projects/{p}/findings/list\nAuthorization: Basic base64(user:accesskey)
+activate TS
+TS --> Helper : findings JSON
+deactivate TS
+Helper --> Agent : findings JSON (stdout)
+deactivate Helper
+
+opt finding type unclear
+    Agent -[$cli_color,bold]> Helper : <size:15>**ts-agent-helper findings type-descriptors**</size>\n--scope <scope> <typeId ...>
+    Helper -> TS : POST /api/v2026.2/projects/{p}/finding-type-descriptors
+    TS --> Helper : type descriptions
+    Helper --> Agent : type descriptions
+end
+
+Agent -> Agent : triage by severity,\nread code, edit files to fix
+
+opt false positive / toleration (after explicit user OK)
+    Agent -[$cli_color,bold]> Helper : <size:15>**ts-agent-helper findings flag**</size>\n ~--type FALSE_POSITIVE|TOLERATION ~--rationale "…" <id ...>
+    Helper -> TS : PUT /api/v2026.2/projects/{p}/findings/flagged
+    TS --> Helper : ok
+    Helper --> Agent : ok
+end
+
+Agent --> Dev : summary — fixed / tolerated / skipped
+
+note over Agent, Helper
+  The per-workstation CLI reads project + branch from
+  .teamscale.toml and holds the access key locally.
+end note
+
+@enduml

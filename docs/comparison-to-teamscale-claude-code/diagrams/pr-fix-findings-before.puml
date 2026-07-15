@@ -1,0 +1,52 @@
+@startuml pr-fix-findings-before
+!include ../../theme.iuml
+title pr-fix-findings — today (ts_agent_helper CLI)
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+autonumber
+
+actor "Developer" as Dev
+
+box "Developer workstation" $ws_bg
+    participant "Claude\n(pr-fix-findings skill)" as Agent
+    participant "ts-agent-helper\n(ts_agent_helper CLI)" as Helper
+end box
+
+box "Teamscale server" $ts_bg
+    participant "Teamscale\nREST API" as TS
+end box
+
+Dev -> Agent : /teamscale:pr-fix-findings
+Agent -[$cli_color,bold]> Helper : <size:15>**ts-agent-helper findings for-pr**</size>
+activate Helper
+Helper -> Helper : git branch --show-current
+Helper -> TS : GET /api/projects/{p}/merge-requests\n?filter=<branch>&status=OPEN
+activate TS
+TS --> Helper : open merge requests
+deactivate TS
+Helper -> Helper : re-filter for exact sourceBranch → MR id,\nelse base-branch fallback\n(git symbolic-ref origin/HEAD)
+Helper -> TS : GET /api/projects/{p}/merge-requests/finding-churn\n(merge-request id, or branch:HEAD vs base)
+activate TS
+TS --> Helper : findings newly added on the branch
+deactivate TS
+Helper --> Agent : resolution banner (stderr)\n+ findings JSON (stdout)
+deactivate Helper
+
+Agent -> Agent : triage, read code, edit files to fix
+
+opt false positive / toleration (after explicit user OK)
+    Agent -[$cli_color,bold]> Helper : <size:15>**ts-agent-helper findings flag …**</size>
+    Helper -> TS : PUT /api/v2026.2/projects/{p}/findings/flagged
+    TS --> Helper : ok
+    Helper --> Agent : ok
+end
+
+Agent --> Dev : summary — fixed / tolerated / skipped
+
+note over Helper
+  The CLI bundles the whole PR resolution: run git,
+  match the open MR, fall back to base branch, then fetch.
+end note
+
+@enduml

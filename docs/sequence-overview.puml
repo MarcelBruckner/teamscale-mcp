@@ -1,0 +1,19 @@
+@startuml sequence-overview
+!include theme.iuml
+title teamscale-mcp — overview
+
+skinparam responseMessageBelowArrow true
+autonumber
+
+actor "MCP client\n(Claude Code, …)" as Client
+participant "teamscale-mcp\n(this repo)" as Sidecar
+participant "Teamscale\nREST API" as TS
+
+Client -> Sidecar : MCP tool call over HTTP\nX-Teamscale-User + X-Teamscale-Token
+Sidecar -> TS : forwarded as\nAuthorization: Basic base64(user:token)
+TS --> Sidecar : result (client's own permissions)
+Sidecar --> Client : MCP tool result
+
+note over Sidecar : Turns each Teamscale REST endpoint into an MCP tool.\nHolds no secret — the client's identity is the only credential.
+
+@enduml

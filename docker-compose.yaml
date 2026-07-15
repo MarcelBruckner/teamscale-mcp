@@ -1,0 +1,50 @@
+# Running `docker compose up` uses the "teamscale-data" directory in this repo
+# (mounted into the teamscale container at /var/teamscale).
+# To run in the background, use `docker compose up -d`
+services:
+  teamscale:
+    image: 'cqse/teamscale:2026.4.latest'
+    restart: unless-stopped
+    working_dir: /var/teamscale
+    volumes:
+      - ./teamscale-data:/var/teamscale
+    ports:
+      - "8080:8080"
+    healthcheck:
+      # curl is present in the cqse/teamscale image; a bare GET returns a 303
+      # login redirect once the app is up, which is enough to call it "healthy"
+      # (curl -f only fails on 4xx/5xx, so the redirect is accepted).
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+  teamscale-mcp:
+    # Build the image from the local source for development. Swap for
+    # `image: ghcr.io/marcelbruckner/teamscale-mcp:latest` to use the published one.
+    build: .
+    restart: unless-stopped
+    depends_on:
+      teamscale:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    environment:
+      # Service name of your Teamscale on the same compose network.
+      TEAMSCALE_SERVER_URL: http://teamscale:8080
+      # Bootstrap technical account used ONLY to download the OpenAPI spec at
+      # startup (committed throwaway dev creds for the disposable instance).
+      TEAMSCALE_SPEC_USER: admin
+      TEAMSCALE_SPEC_TOKEN: hhFECB34JEpra1GwEgUkocUQuHuDBWVi
+      TEAMSCALE_INCLUDE_INTERNAL: "false"
+      # The dev stack intentionally exposes the FULL tool surface (~123 tools) so
+      # tests and manual exploration can reach every operation. No tag/method/name
+      # filters are set here on purpose. For a curated production surface, see the
+      # recommended filtering in README.md ("Trimming the tool surface") —
+      # e.g. TEAMSCALE_EXCLUDE_TAGS + TEAMSCALE_EXCLUDE_METHODS: "DELETE,PUT,PATCH".
+    ports:
+      - "8081:8081"

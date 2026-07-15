@@ -1,0 +1,64 @@
+@startuml auth-sequence
+!include theme.iuml
+title teamscale-mcp — credential flow
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+autonumber
+
+actor "Deployer\n(env vars)" as Deployer
+actor "MCP client\n(Claude Code, …)" as Client
+
+box "teamscale-mcp (this repo)" $ws_bg
+    participant "TokenCapture\nMiddleware\n(ASGI)" as MW
+    participant "FastMCP\n(OpenAPI-derived tools)" as MCP
+    participant "httpx client\n+ TeamscaleBasicAuth" as HTTP
+end box
+
+box "Teamscale server" $ts_bg
+    participant "Teamscale\nREST API" as TS
+end box
+
+== Tier 1: bootstrap credentials (startup only) ==
+Deployer -[$cli_color,bold]> MCP : <b>TEAMSCALE_SPEC_USER + TEAMSCALE_SPEC_TOKEN</b>\n(process env)
+activate MCP
+MCP -[$cli_color,bold]> TS : GET /openapi.json\n<b>Basic base64(SPEC_USER : SPEC_TOKEN)</b>
+activate TS
+TS --> MCP : OpenAPI spec (JSON)
+deactivate TS
+deactivate MCP
+note over Deployer, TS : Bootstrap creds are used <b>once</b>, only to download the spec.\nThey are <b>never</b> used for a tool call made on behalf of a client.
+
+== Tier 2: per-request client identity ==
+
+group Missing identity headers → rejected before any tool
+    Client -[$drop_color,bold]> MW : POST /mcp\n(no X-Teamscale-User / -Token)
+    MW -[$drop_color,bold]> Client : <b>401</b>\n{"error":"missing …-User/…-Token header"}
+end
+
+group Authenticated tool call
+    Client -[$tool_color,bold]> MW : POST /mcp\n<b>X-Teamscale-User + X-Teamscale-Token</b>\n(tool call, e.g. getFindings)
+    activate MW
+    MW -> MW : stash user + token\nin contextvars
+    MW -> MCP : forward ASGI request
+    activate MCP
+    MCP -> HTTP : invoke mapped REST operation
+    activate HTTP
+    HTTP -> HTTP : read user + token\nfrom contextvars
+    HTTP -[$tool_color,bold]> TS : HTTP <op> /api/…\n<b>Authorization: Basic base64(user:token)</b>
+    activate TS
+    TS -> TS : validate credentials
+    TS --> HTTP : JSON response\n(client's own permissions)
+    deactivate TS
+    HTTP --> MCP : response
+    deactivate HTTP
+    MCP --> MW : tool result
+    deactivate MCP
+    MW -> MW : reset contextvars (finally)
+    MW --> Client : MCP tool result
+    deactivate MW
+end
+
+note over MW, TS : The client's token never touches disk and is scoped to one request:\nset in contextvars on the way in, reset in a finally on the way out.\nThe server holds <b>no</b> secret — Teamscale validates the forwarded credentials.
+
+@enduml

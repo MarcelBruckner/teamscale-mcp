@@ -1,0 +1,68 @@
+@startuml check-setup-after
+!include ../../theme.iuml
+title check-setup — with teamscale-mcp (teamscale-dev CLI stays)
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+autonumber
+
+actor "Developer" as Dev
+
+box "Developer workstation" $ws_bg
+    participant "Claude\n(check-setup skill)" as Agent
+    participant "shell / teamscale-dev\n(local)" as Shell
+end box
+
+box "Teamscale server" $ts_bg
+    participant "teamscale-mcp\n(central sidecar)" as MCP
+    participant "Teamscale\nREST API" as TS
+end box
+
+Dev -> Agent : /teamscale:check-setup
+
+group New — verify the REST-tool backend (the sidecar)
+    Agent -> MCP : GET /health   (unauthenticated)
+    activate MCP
+    MCP --> Agent : 200 "ok"   (spec downloaded)
+    deactivate MCP
+    Agent -> MCP : trivial authenticated tool call\ne.g. getProjects()  +  X-Teamscale-User / -Token
+    activate MCP
+    MCP -> TS : GET /api/…/projects\nAuthorization: Basic base64(user:token)
+    activate TS
+    TS --> MCP : projects   (identity valid)
+    deactivate TS
+    MCP --> Agent : result → headers work
+    deactivate MCP
+end
+
+group Still required
+    group Teamscale server API version
+        Agent -> TS : curl <server.url>/api/version
+        activate TS
+        TS --> Agent : maxApiVersion   (>= 2026.2)
+        deactivate TS
+    end
+
+    group teamscale-dev for the local-* skills
+        Agent -> Shell : teamscale-dev --version   (>= 2026.3.0)
+        Shell --> Agent : version
+        Agent -> Agent : read .teamscale.toml at repo root
+        Agent -> Shell : teamscale-dev verify-config [@~/.teamscale-dev.args]
+        Shell -> TS : verify configuration against server
+        activate TS
+        TS --> Shell : ok / error
+        deactivate TS
+        Shell --> Agent : result
+    end
+end
+
+Agent --> Dev : report — MCP reachable + identity valid,\nAPI version + teamscale-dev OK
+
+note over Agent, TS
+  Net vs. today: drops only the python3 check (Python was only for
+  ts_agent_helper) and adds the MCP endpoint + identity checks. The
+  server API version check, teamscale-dev, and .teamscale.toml stay
+  for the local-* skills.
+end note
+
+@enduml

@@ -1,0 +1,126 @@
+#!/bin/sh
+# Render any out-of-date PlantUML diagrams under docs/ (recursively) and stage the
+# PNGs, so a commit that touches a .puml (or a theme it includes) always carries a
+# matching PNG. Then merge any before/after pair into one side-by-side composite
+# (`<name>-before.png` + `<name>-after.png` -> `<name>.png`) so a README can embed
+# the pair as a single image.
+#
+# A diagram is re-rendered only when it is not up to date: its .png is missing, or
+# older than its .puml, or older than any theme/include file it depends on
+# (docs/theme.iuml or an include-only .iuml/.puml in the diagram's own folder).
+# Up-to-date diagrams are left untouched.
+#
+# Include-only files (theme.iuml) contain no @startuml and
+# are never rendered on their own — they only act as freshness dependencies.
+#
+# Each diagram renders its PNG in place, next to its .puml source. For a before/
+# after pair kept in a `diagrams/` subfolder, only the merged composite is written
+# one level up (next to the folder README); the per-side renders stay in
+# `diagrams/` alongside the sources.
+#
+# Enable once per clone:  git config core.hooksPath .githooks
+
+if ! command -v plantuml >/dev/null 2>&1; then
+    echo "pre-commit: plantuml not found; skipping diagram render (install it to keep PNGs in sync)" >&2
+    exit 0
+fi
+
+# Repo paths under docs/ contain no spaces, so word-splitting the find output is
+# fine and lets `exit 1` abort the whole hook (a while|read pipe would not).
+for puml in $(find docs -type f -name '*.puml'); do
+    # Skip include-only theme files (no @startuml diagram of their own).
+    # Anchor the match so a mention of @startuml in a comment doesn't count.
+    grep -qE '^[[:space:]]*@startuml' "$puml" || continue
+
+    dir=$(dirname "$puml")
+    base=$(basename "$puml" .puml)
+    png="$dir/$base.png"            # render in place, next to the .puml source
+
+    # Re-render when the PNG is missing, older than its .puml, or older than any
+    # theme/include file it depends on.
+    stale=""
+    if [ ! -f "$png" ] || [ "$puml" -nt "$png" ]; then
+        stale=1
+    else
+        for dep in docs/theme.iuml "$dir"/*.iuml "$dir"/*.puml; do
+            [ -f "$dep" ] || continue
+            grep -qE '^[[:space:]]*@startuml' "$dep" 2>/dev/null && continue   # only include-only files are deps
+            if [ "$dep" -nt "$png" ]; then
+                stale=1
+                break
+            fi
+        done
+    fi
+
+    if [ -n "$stale" ]; then
+        echo "pre-commit: rendering $puml -> $png" >&2
+        plantuml -tpng -o . "$puml" || {
+            echo "pre-commit: failed to render $puml" >&2
+            exit 1
+        }
+        git add "$png"
+    fi
+done
+
+# Merge each before/after pair into one side-by-side composite. The two renders
+# differ in height, so align them at the top (-gravity north) and separate them
+# with a white gap (+smush). Exclude the PNG date/time chunks so the output is
+# byte-stable across runs (no needless churn). A pair inside a `diagrams/` subfolder
+# writes its composite one level up (next to the README); otherwise it is written
+# in place. Re-merge when the composite is missing or older than either half. Needs
+# ImageMagick; skipped (not fatal) when absent.
+if command -v magick >/dev/null 2>&1; then
+    for before in $(find docs -type f -name '*-before.png'); do
+        after="${before%-before.png}-after.png"
+        [ -f "$after" ] || continue
+
+        bdir=$(dirname "$before")
+        name=$(basename "${before%-before.png}")
+        if [ "$(basename "$bdir")" = "diagrams" ]; then
+            merged="$(dirname "$bdir")/$name.png"    # one level up, next to the README
+        else
+            merged="$bdir/$name.png"
+        fi
+
+        if [ ! -f "$merged" ] || [ "$before" -nt "$merged" ] || [ "$after" -nt "$merged" ]; then
+            echo "pre-commit: merging $before + $after -> $merged" >&2
+            magick "$before" "$after" -background white -gravity north +smush 30 \
+                -define png:exclude-chunk=date,time "$merged" || {
+                echo "pre-commit: failed to merge $merged" >&2
+                exit 1
+            }
+            git add "$merged"
+        fi
+    done
+else
+    echo "pre-commit: magick (ImageMagick) not found; skipping before/after merge" >&2
+fi
+
+# Rebuild each Marp deck's PDF when its markdown is part of this commit, or when the
+# PDF is missing or older than its .md. Delegates to docs/presentation/build-pdf.sh
+# (which finds a Chrome and inlines local images) and stages the result. Skipped
+# (not fatal) when marp is absent, matching the plantuml/magick handling above.
+if command -v marp >/dev/null 2>&1; then
+    staged=$(git diff --cached --name-only)
+    for deck in $(find docs/presentation -maxdepth 1 -type f -name '*.md'); do
+        pdf="${deck%.md}.pdf"
+        stale=""
+        if [ ! -f "$pdf" ] || [ "$deck" -nt "$pdf" ]; then
+            stale=1
+        elif printf '%s\n' "$staged" | grep -qxF "$deck"; then
+            stale=1
+        fi
+        [ -n "$stale" ] || continue
+
+        echo "pre-commit: rendering $deck -> $pdf" >&2
+        docs/presentation/build-pdf.sh "$(basename "$deck")" >&2 || {
+            echo "pre-commit: failed to render $deck" >&2
+            exit 1
+        }
+        git add "$pdf"
+    done
+else
+    echo "pre-commit: marp not found; skipping deck PDF render (install with 'brew install marp-cli')" >&2
+fi
+
+exit 0

@@ -1,0 +1,51 @@
+@startuml local-select-tests-before
+!include ../../theme.iuml
+title local-select-tests — today (teamscale-dev local MCP)
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+autonumber
+
+actor "Developer" as Dev
+
+box "Developer workstation" $ws_bg
+    participant "Claude\n(local-select-tests skill)" as Agent
+    participant "teamscale-dev MCP\n(local stdio, per user)" as DevMCP
+    participant "working tree\n(local files)" as WT
+end box
+
+box "Teamscale server" $ts_bg
+    participant "Teamscale\nREST API" as TS
+end box
+
+Dev -> Agent : /teamscale:local-select-tests [paths]
+Agent -> Agent : teamscale-dev -h | grep fetch-impacted-tests\n(requires >= 2026.5.0-beta)
+
+Agent -> DevMCP : tool pre-commit(paths,\nuploadScope=ONLY_UNCOMMITTED,\nonlyPreCommitFindings=true)
+activate DevMCP
+DevMCP -> WT : read uncommitted edits
+WT --> DevMCP : local diff
+DevMCP -> TS : upload local diff + run pre-commit analysis
+activate TS
+TS --> DevMCP : pre-commit branch analysed
+deactivate TS
+DevMCP --> Agent : pre-commit findings
+deactivate DevMCP
+
+Agent -> DevMCP : tool fetch-impacted-tests(path,\nonPreCommitBranch=true, strategy=COVERAGE)
+activate DevMCP
+DevMCP -> TS : change-based test selection\non the pre-commit branch
+activate TS
+TS --> DevMCP : impacted tests (impact-ordered)
+deactivate TS
+DevMCP --> Agent : impacted tests
+deactivate DevMCP
+
+Agent --> Dev : report impacted tests (impact order);\ndoes not run them unless asked
+
+note over DevMCP, WT
+  NOT ts_agent_helper. Both steps depend on uploading
+  the local working tree — a per-workstation operation.
+end note
+
+@enduml

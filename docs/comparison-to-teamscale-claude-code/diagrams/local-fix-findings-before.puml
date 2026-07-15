@@ -1,0 +1,41 @@
+@startuml local-fix-findings-before
+!include ../../theme.iuml
+title local-fix-findings — today (teamscale-dev local MCP)
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+autonumber
+
+actor "Developer" as Dev
+
+box "Developer workstation" $ws_bg
+    participant "Claude\n(local-fix-findings skill)" as Agent
+    participant "teamscale-dev MCP\n(local stdio, per user)" as DevMCP
+    participant "working tree\n(local files)" as WT
+end box
+
+box "Teamscale server" $ts_bg
+    participant "Teamscale\nREST API" as TS
+end box
+
+Dev -> Agent : /teamscale:local-fix-findings [paths]
+Agent -> DevMCP : tool pre-commit(paths,\nuploadScope=ONLY_UNCOMMITTED,\nonlyPreCommitFindings=true)
+activate DevMCP
+DevMCP -> WT : read uncommitted edits
+WT --> DevMCP : local diff
+DevMCP -> TS : upload local diff + run pre-commit analysis\nBasic(user:accesskey)
+activate TS
+TS --> DevMCP : findings introduced by the local edits
+deactivate TS
+DevMCP --> Agent : pre-commit findings
+deactivate DevMCP
+
+Agent -> Agent : read code, edit files to fix\n(never flags / tolerates)
+Agent --> Dev : summary — fixed / skipped\n(+ suggest re-running analysis)
+
+note over DevMCP, WT
+  This is NOT ts_agent_helper. Pre-commit reads your local
+  working tree — inherently a per-workstation operation.
+end note
+
+@enduml

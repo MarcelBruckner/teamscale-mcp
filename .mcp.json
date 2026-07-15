@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "teamscale": {
+      "type": "http",
+      "url": "https://your-host/mcp",
+      "headers": {
+        "X-Teamscale-User": "YOUR_USERNAME",
+        "X-Teamscale-Token": "YOUR_API_TOKEN"
+      }
+    }
+  }
+}

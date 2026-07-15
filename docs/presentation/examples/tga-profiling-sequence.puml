@@ -1,0 +1,59 @@
+@startuml tga-profiling-sequence
+!include ../../theme.iuml
+
+title Check TGA & set up frontend profiling — you, teamscale-mcp & teamscale-docs-mcp
+
+actor "You" as U
+participant "Claude" as C
+participant "teamscale-docs-mcp" as D
+participant "teamscale-mcp" as T
+
+legend top right
+|= color |= source |
+|<back:#1971c2>    </back>| teamscale-docs-mcp — concepts & how-tos |
+|<back:#e8590c>    </back>| teamscale-mcp — live project data |
+endlegend
+
+autonumber
+
+== Learn the concept (docs) ==
+U -> C : what is TGA in Teamscale?
+C -[#1971c2]> D : list_documentation / get_documentation_page(test-gap analysis)
+D --[#1971c2]> C : Test Gap Analysis — changed vs. tested code
+C --> U : explanation of TGA
+
+== Pull the data (teamscale) ==
+U -> C : show TGA for my "traureise" project
+C -[#e8590c]> T : getAllProjectIds() -> getProject() -> getTgaPercentage()
+T --[#e8590c]> C : 0% (suspicious)
+
+== Diagnose the 0% (teamscale) ==
+U -> C : coverage definitely exists
+C -[#e8590c]> T : getTgaPercentage(all-partitions, churn), getAllBaselines()
+T --[#e8590c]> C : no baselines -> empty change window
+C -[#e8590c]> T : getTgaPercentage(baseline main:1 -> HEAD)
+T --[#e8590c]> C : ~22% test gap
+note over C #D3F9D8
+  <b>Relate:</b> the 0% wasn't a coverage problem —
+  TGA needs a baseline to define the change window
+end note
+
+== Localize the gap (teamscale) ==
+U -> C : which methods make up the 22%?
+C -[#e8590c]> T : getDeltaAffectedFiles(main:1 -> HEAD)
+C -[#e8590c]> T : getTgaPercentage(uniform-path = per directory / file)
+T --[#e8590c]> C : frontend/src 100%, backend utils.py & login.py
+note over C, T #FFF3BF
+  <b>Where the gap lives</b>
+  frontend/src ....... 100% (no coverage mapped)
+  backend/app ........ 13% (utils.py, routes/utils.py, login.py)
+  crud / core / most routes .. 0% (covered)
+end note
+
+== Act on it (docs how-to) ==
+U -> C : help me set up frontend coverage profiling
+C -[#1971c2]> D : get_documentation_page(javascript profiler / setup how-to)
+D --[#1971c2]> C : instrumenter + collector steps, source maps, CSP
+C --> U : runbook — JS Profiler (Playwright E2E) + Vitest (unit)
+
+@enduml

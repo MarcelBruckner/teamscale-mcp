@@ -1,0 +1,46 @@
+@startuml local-fix-findings-after
+!include ../../theme.iuml
+title local-fix-findings — after (unchanged; stays local)
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+autonumber
+
+actor "Developer" as Dev
+
+box "Developer workstation" $ws_bg
+    participant "Claude\n(local-fix-findings skill)" as Agent
+    participant "teamscale-dev MCP\n(local stdio, per user)" as DevMCP
+    participant "working tree\n(local files)" as WT
+end box
+
+box "Teamscale server" $ts_bg
+    participant "teamscale-mcp\n(central sidecar)" as MCP
+    participant "Teamscale\nREST API" as TS
+end box
+
+Dev -> Agent : /teamscale:local-fix-findings [paths]
+
+note over Dev, TS #C1121F
+  <size:17><color:#FFFFFF><b>NOT REPLACEABLE — stays on the local teamscale-dev MCP</b></color></size>
+  <color:#FFFFFF>Pre-commit uploads your working tree, which the central sidecar can't read —</color>
+  <color:#FFFFFF>so replacing ts_agent_helper does not touch this skill.</color>
+end note
+
+Agent -x MCP : (cannot serve pre-commit —\nno access to local files)
+
+Agent -> DevMCP : tool pre-commit(paths,\nuploadScope=ONLY_UNCOMMITTED,\nonlyPreCommitFindings=true)
+activate DevMCP
+DevMCP -> WT : read uncommitted edits
+WT --> DevMCP : local diff
+DevMCP -> TS : upload local diff + run pre-commit analysis
+activate TS
+TS --> DevMCP : findings introduced by the local edits
+deactivate TS
+DevMCP --> Agent : pre-commit findings
+deactivate DevMCP
+
+Agent -> Agent : read code, edit files to fix
+Agent --> Dev : summary — fixed / skipped (+ suggest re-run)
+
+@enduml

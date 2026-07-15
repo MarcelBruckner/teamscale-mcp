@@ -1,0 +1,30 @@
+@startuml architecture
+!include theme.iuml
+title teamscale-mcp — architecture
+
+left to right direction
+skinparam linetype ortho
+skinparam nodesep 70
+skinparam ranksep 220
+skinparam defaultTextAlignment center
+
+together {
+    actor "MCP client\n(via reverse proxy)" as C1
+    actor "MCP client\n(direct, trusted LAN)" as C2
+}
+
+rectangle "reverse proxy\n(optional — TLS)" as Proxy
+
+rectangle "Docker host / compose network" as Host {
+    rectangle "teamscale-mcp\n(this repo)\n:8081 /mcp" as MCP
+    rectangle "Teamscale\n:8080 REST API" as TS
+    database "teamscale-data\n(volume)" as Data
+}
+
+C1 --> Proxy : HTTPS
+C2 --> MCP : HTTP (LAN)
+Proxy --> MCP : /mcp
+MCP --> TS : REST\n(Basic auth)
+TS --> Data : data
+
+@enduml

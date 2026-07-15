@@ -1,0 +1,45 @@
+@startuml pr-close-test-gaps-before
+!include ../../theme.iuml
+title pr-close-test-gaps — today (ts_agent_helper CLI)
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+autonumber
+
+actor "Developer" as Dev
+
+box "Developer workstation" $ws_bg
+    participant "Claude\n(pr-close-test-gaps skill)" as Agent
+    participant "ts-agent-helper\n(ts_agent_helper CLI)" as Helper
+end box
+
+box "Teamscale server" $ts_bg
+    participant "Teamscale\nREST API" as TS
+end box
+
+Dev -> Agent : /teamscale:pr-close-test-gaps
+Agent -[$cli_color,bold]> Helper : <size:15>**ts-agent-helper test-gaps for-pr**</size>
+activate Helper
+Helper -> Helper : git branch --show-current
+Helper -> TS : GET /api/projects/{p}/merge-requests\n?filter=<branch>&status=OPEN
+activate TS
+TS --> Helper : open merge requests
+deactivate TS
+Helper -> Helper : resolve exact MR / base-branch fallback
+Helper -> TS : GET /api/projects/{p}/test-gaps.csv\n(baseline, end, merge-request-mode=true, …)
+activate TS
+TS --> Helper : test-gap CSV\n(uniform path, method, lines, test state)
+deactivate TS
+Helper --> Agent : resolution banner (stderr) + CSV (stdout)
+deactivate Helper
+
+Agent -> Agent : pick gaps to close;\ndetect test framework from existing tests
+Agent -> Agent : write tests, run them to confirm they pass
+Agent --> Dev : summary — gaps closed / skipped
+
+note over Agent, TS
+  Test gaps are recomputed server-side from CI coverage
+  only after new tests are pushed to Git.
+end note
+
+@enduml

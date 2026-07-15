@@ -1,0 +1,54 @@
+@startuml check-setup-before
+!include ../../theme.iuml
+title check-setup — today (teamscale-dev CLI)
+
+skinparam responseMessageBelowArrow true
+skinparam sequenceMessageAlign center
+autonumber
+
+actor "Developer" as Dev
+
+box "Developer workstation" $ws_bg
+    participant "Claude\n(check-setup skill)" as Agent
+    participant "shell / teamscale-dev\n(local)" as Shell
+end box
+
+box "Teamscale server" $ts_bg
+    participant "Teamscale\nREST API" as TS
+end box
+
+Dev -> Agent : /teamscale:check-setup
+
+group Python
+    Agent -> Shell : python3 --version   (>= 3.9)
+    Shell --> Agent : version
+end
+
+group Teamscale server API version
+    Agent -> TS : curl <server.url>/api/version
+    activate TS
+    TS --> Agent : maxApiVersion   (>= 2026.2)
+    deactivate TS
+end
+
+group teamscale-dev
+    Agent -> Shell : teamscale-dev --version   (>= 2026.3.0)
+    Shell --> Agent : version
+    Agent -> Agent : read .teamscale.toml at repo root\n(offer to create if missing)
+    Agent -> Agent : check creds present\n(TEAMSCALE_DEV_USER / _ACCESSKEY / _SERVERS,\n~/.teamscale-dev.args)
+    Agent -> Shell : teamscale-dev verify-config [@~/.teamscale-dev.args]
+    Shell -> TS : verify configuration against server
+    activate TS
+    TS --> Shell : ok / error
+    deactivate TS
+    Shell --> Agent : result
+end
+
+Agent --> Dev : report — success / failure
+
+note over Agent, Shell
+  Verifies prerequisites: Python, the Teamscale server API version,
+  and the teamscale-dev CLI (+ .teamscale.toml and local credentials).
+end note
+
+@enduml
