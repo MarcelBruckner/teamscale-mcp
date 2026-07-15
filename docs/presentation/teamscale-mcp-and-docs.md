@@ -111,7 +111,7 @@ gitlab.com/cqse/internal/**teamscale-mcp** · **teamscale-docs-mcp**
 
 <br>
 
-*Two sidecars: the full REST API plus the Teamscale docs, for any client and any identity*
+*Two sidecars: the full REST API plus the Teamscale docs, for any client*
 
 ---
 
@@ -158,6 +158,34 @@ One central HTTP sidecar, deployed once next to Teamscale:
 <br>
 
 > If the API can do it, there's a tool for it, and it always matches the instance's own version.
+
+---
+
+## Configured entirely by **env vars**
+
+```yaml
+teamscale-mcp:
+  
+  image: registry.gitlab.com/cqse/internal/teamscale-mcp:latest
+  ports: ["8081:8081"]                    # serving: MCP_HOST / _PORT / _PATH, MCP_ALLOWED_HOSTS
+  environment:
+    
+    # Connection + bootstrap creds (used once, at startup, to fetch the spec)
+    TEAMSCALE_SERVER_URL: http://teamscale:8080
+    TEAMSCALE_SPEC_USER:  some-technical-user
+    TEAMSCALE_SPEC_TOKEN: some-technical-user-api-token
+    TEAMSCALE_INCLUDE_INTERNAL: "false"
+    
+    # Tool surface: trim to a sharp, read-oriented set (blocklist recommended)
+    TEAMSCALE_EXCLUDE_TAGS: "Backup,System,Users,Profilers,SAP,…"
+    TEAMSCALE_EXCLUDE_METHODS: "DELETE,PUT,PATCH"
+    # TEAMSCALE_INCLUDE_TAGS:  "Findings,Metrics,Test Gap Analysis"
+    # TEAMSCALE_INCLUDE_NAMES: "createBaseline"
+```
+
+<br>
+
+> Per-request identity arrives in the `X-Teamscale-User` / `-Token` headers, never from the environment.
 
 ---
 
@@ -246,6 +274,29 @@ Teamscale's documentation, served as MCP tools:
 <br>
 
 > It hands the agent Teamscale's manual, not just its data.
+
+---
+
+## Configured by a single **env var**
+
+```yaml
+teamscale-docs-mcp:
+
+  image: registry.gitlab.com/cqse/internal/teamscale-docs-mcp:latest
+  ports: ["8082:8082"]                    # serving: MCP_HOST / _PORT / _PATH, MCP_ALLOWED_HOSTS
+  environment:
+
+    # The only real setting: where the docs live. Point at the instance's
+    # version-matched bundled docs, so no request leaves the network …
+    DOCS_BASE_URL: http://teamscale:8080/documentation
+    
+    # … or serve the public site instead:
+    # DOCS_BASE_URL: https://docs.teamscale.com
+```
+
+<br>
+
+> No credentials, no headers: the docs are public content, so there is nothing to authenticate.
 
 ---
 
@@ -442,7 +493,7 @@ Not a mockup, but an actual conversation against a live project:
 
 # Thank you
 
-**teamscale-mcp** gives Teamscale to any agent and any identity.
+**teamscale-mcp** gives Teamscale's data to any agent.
 **teamscale-docs-mcp** gives it the manual.
 
 
@@ -455,34 +506,6 @@ Not a mockup, but an actual conversation against a live project:
 <!-- _paginate: false -->
 
 # Backup
-
----
-
-## Configured entirely by **env vars**
-
-```yaml
-teamscale-mcp:
-  
-  image: registry.gitlab.com/cqse/internal/teamscale-mcp:latest
-  ports: ["8081:8081"]                    # serving: MCP_HOST / _PORT / _PATH, MCP_ALLOWED_HOSTS
-  environment:
-    
-    # Connection + bootstrap creds (used once, at startup, to fetch the spec)
-    TEAMSCALE_SERVER_URL: http://teamscale:8080
-    TEAMSCALE_SPEC_USER:  some-technical-user
-    TEAMSCALE_SPEC_TOKEN: some-technical-user-api-token
-    TEAMSCALE_INCLUDE_INTERNAL: "false"
-    
-    # Tool surface: trim to a sharp, read-oriented set (blocklist recommended)
-    TEAMSCALE_EXCLUDE_TAGS: "Backup,System,Users,Profilers,SAP,…"
-    TEAMSCALE_EXCLUDE_METHODS: "DELETE,PUT,PATCH"
-    # TEAMSCALE_INCLUDE_TAGS:  "Findings,Metrics,Test Gap Analysis"
-    # TEAMSCALE_INCLUDE_NAMES: "createBaseline"
-```
-
-<br>
-
-> Per-request identity arrives in the `X-Teamscale-User` / `-Token` headers, never from the environment.
 
 ---
 
@@ -509,29 +532,6 @@ claude mcp add teamscale-personal --scope user --transport http \
 
 > The two headers *are* your Teamscale identity, forwarded per request.
 > Any MCP-capable client works the same way.
-
----
-
-## Configured by a single **env var**
-
-```yaml
-teamscale-docs-mcp:
-
-  image: registry.gitlab.com/cqse/internal/teamscale-docs-mcp:latest
-  ports: ["8082:8082"]                    # serving: MCP_HOST / _PORT / _PATH, MCP_ALLOWED_HOSTS
-  environment:
-
-    # The only real setting: where the docs live. Point at the instance's
-    # version-matched bundled docs, so no request leaves the network …
-    DOCS_BASE_URL: http://teamscale:8080/documentation
-    
-    # … or serve the public site instead:
-    # DOCS_BASE_URL: https://docs.teamscale.com
-```
-
-<br>
-
-> No credentials, no headers: the docs are public content, so there is nothing to authenticate.
 
 ---
 
