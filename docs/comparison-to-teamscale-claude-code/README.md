@@ -84,7 +84,7 @@ itself**, where there is no code to edit:
   code-fixing skills never touch, but which the full REST surface exposes as tools.
 
 Pair it with the companion
-**[teamscale-docs-mcp](https://github.com/MarcelBruckner/teamscale-docs-mcp)** (the
+**[teamscale-docs-mcp](https://gitlab.com/cqse/internal/teamscale-docs-mcp)** (the
 Teamscale documentation served as MCP tools) and the agent can both **explain**
 Teamscale (concepts, how-tos) and **act on it** (read data, set up projects and profiles
 via REST) in one conversation — a data-and-understanding assistant, where the plugin is a

@@ -55,7 +55,8 @@ curl http://localhost:8081/health   # -> ok
 ./run-tests-clean.sh
 ```
 
-The image is built and pushed to GHCR by `.github/workflows/publish.yml` on push to
+The image is built and pushed to the GitLab Container Registry
+(`registry.gitlab.com/cqse/internal/teamscale-mcp`) by `.gitlab-ci.yml` on push to
 `main` and on `v*` tags.
 
 ## Test layout

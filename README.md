@@ -1,4 +1,4 @@
-<h1 align="center"><a href="https://github.com/MarcelBruckner/teamscale-mcp">Teamscale REST API MCP server</a></h1>
+<h1 align="center"><a href="https://gitlab.com/cqse/internal/teamscale-mcp">Teamscale REST API MCP server</a></h1>
 
 <p align="center"><em>MCP server that exposes the Teamscale REST API as tools, running as a container sidecar with per-client credential pass-through.</em></p>
 
@@ -11,7 +11,7 @@ documented operation into an MCP tool via `FastMCP.from_openapi` (**123 tools** 
 whatever your instance's spec exposes), served over streamable **HTTP** so any MCP
 client connects to it by URL.
 
-> **Related:** [**teamscale-docs-mcp**](https://github.com/MarcelBruckner/teamscale-docs-mcp)
+> **Related:** [**teamscale-docs-mcp**](https://gitlab.com/cqse/internal/teamscale-docs-mcp)
 > is the companion server that exposes Teamscale's **product documentation** as
 > MCP tools (public docs, no auth). The two are designed to run side by side as
 > sidecars — this REST API server on `8081`, teamscale-docs-mcp on `8082` —
@@ -73,7 +73,7 @@ services:
     # ... your existing Teamscale service ...
 
   teamscale-mcp:
-    image: ghcr.io/marcelbruckner/teamscale-mcp:latest
+    image: registry.gitlab.com/cqse/internal/teamscale-mcp:latest
     container_name: teamscale-mcp
     restart: unless-stopped
     depends_on:
@@ -295,7 +295,7 @@ mcp.example.com {
 **Same host as Teamscale, under `/mcp`** — serve both from one domain, so clients
 reach Teamscale at `https://teamscale.example.com/` and the MCP endpoint at
 `https://teamscale.example.com/mcp`. This server serves `/mcp`; the companion
-[teamscale-docs-mcp](https://github.com/MarcelBruckner/teamscale-docs-mcp) serves
+[teamscale-docs-mcp](https://gitlab.com/cqse/internal/teamscale-docs-mcp) serves
 the distinct `/docs-mcp` path, so both MCP sidecars can live behind the same host
 at once:
 
@@ -376,7 +376,7 @@ single place for **org-wide observability** (which operations get used, by whom,
 often) that per-user helpers structurally can't give. It also serves a **different
 audience**: where the plugin is for developers editing code, the sidecar — especially
 with the companion
-**[teamscale-docs-mcp](https://github.com/MarcelBruckner/teamscale-docs-mcp)** — is for
+**[teamscale-docs-mcp](https://gitlab.com/cqse/internal/teamscale-docs-mcp)** — is for
 people working with the *data and configuration* (consultants, managers, newcomers setting up projects or analysis
 profiles). It can *also* stand in for `ts_agent_helper` behind the plugin's own skills
 (ops simplification), but that swap is a secondary use — and the plugin's workflows plus

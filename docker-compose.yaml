@@ -21,7 +21,7 @@ services:
       start_period: 30s
   teamscale-mcp:
     # Build the image from the local source for development. Swap for
-    # `image: ghcr.io/marcelbruckner/teamscale-mcp:latest` to use the published one.
+    # `image: registry.gitlab.com/cqse/internal/teamscale-mcp:latest` to use the published one.
     build: .
     restart: unless-stopped
     depends_on:

@@ -1,4 +1,5 @@
----
+,
+,pp00---
 marp: true
 theme: default
 paginate: true
@@ -107,7 +108,7 @@ section.diagram img { max-width: 100%; max-height: 86vh; height: auto; }
 
 # teamscale-mcp &<br/> teamscale-docs-mcp
 
-github.com/MarcelBruckner/**teamscale-mcp** · **teamscale-docs-mcp**
+gitlab.com/cqse/internal/**teamscale-mcp** · **teamscale-docs-mcp**
 
 <br>
 
@@ -158,34 +159,6 @@ One central HTTP sidecar, deployed once next to Teamscale:
 <br>
 
 > If the API can do it, there's a tool for it, and it always matches the instance's own version.
-
----
-
-## Configured entirely by **env vars**
-
-```yaml
-teamscale-mcp:
-  
-  image: ghcr.io/marcelbruckner/teamscale-mcp:latest
-  ports: ["8081:8081"]                    # serving: MCP_HOST / _PORT / _PATH, MCP_ALLOWED_HOSTS
-  environment:
-    
-    # Connection + bootstrap creds (used once, at startup, to fetch the spec)
-    TEAMSCALE_SERVER_URL: http://teamscale:8080
-    TEAMSCALE_SPEC_USER:  some-technical-user
-    TEAMSCALE_SPEC_TOKEN: some-technical-user-api-token
-    TEAMSCALE_INCLUDE_INTERNAL: "false"
-    
-    # Tool surface: trim to a sharp, read-oriented set (blocklist recommended)
-    TEAMSCALE_EXCLUDE_TAGS: "Backup,System,Users,Profilers,SAP,…"
-    TEAMSCALE_EXCLUDE_METHODS: "DELETE,PUT,PATCH"
-    # TEAMSCALE_INCLUDE_TAGS:  "Findings,Metrics,Test Gap Analysis"
-    # TEAMSCALE_INCLUDE_NAMES: "createBaseline"
-```
-
-<br>
-
-> Per-request identity arrives in the `X-Teamscale-User` / `-Token` headers, never from the environment.
 
 ---
 
@@ -303,47 +276,12 @@ Teamscale's documentation, served as MCP tools:
 
 ---
 
-## Configured by a single **env var**
+## Explain and act: generic docs, tailored to *your* repo
 
-```yaml
-teamscale-docs-mcp:
+Neither half is the point on its own. Together they turn a generic manual into steps for *this* repo.
 
-  image: ghcr.io/marcelbruckner/teamscale-docs-mcp:latest
-  ports: ["8082:8082"]                    # serving: MCP_HOST / _PORT / _PATH, MCP_ALLOWED_HOSTS
-  environment:
-
-    # The only real setting: where the docs live. Point at the instance's
-    # version-matched bundled docs, so no request leaves the network …
-    DOCS_BASE_URL: http://teamscale:8080/documentation
-    
-    # … or serve the public site instead:
-    # DOCS_BASE_URL: https://docs.teamscale.com
-```
-
-<br>
-
-> No credentials, no headers: the docs are public content, so there is nothing to authenticate.
-
----
-
-## Explain and act: the pairing that matters
-
-Neither half is the point on its own. Together they are.
-
-- 📖 **teamscale-docs-mcp** explains: concepts, how-tos, reference
-- 🔌 **teamscale-mcp** acts: read data, set up projects, adjust analysis profiles
-
-<br>
-
-> In one conversation you get a data-and-understanding assistant, exactly what the
-> code-editing plugin can't be.
-
----
-
-## Generic docs, tailored to *your* repo
-
-- 📖 **teamscale-docs-mcp**: the generic how-to (any language, any stack)
-- 🔌 **teamscale-mcp**: *this* project's real languages, test framework, build/CI config
+- 📖 **teamscale-docs-mcp** explains: the generic how-to (any language, any stack)
+- 🔌 **teamscale-mcp** acts: *this* project's real languages, test framework, build/CI config
 - ✍️ Claude merges the two into a runbook written for this repo specifically
 
 <br>
@@ -493,21 +431,6 @@ Not a mockup, but an actual conversation against a live project:
 
 ---
 
-## How they fit together
-
-Sidecars next to Teamscale. Pick the pieces per audience:
-
-- 📖 **teamscale-docs-mcp** on `:8082` (no auth, the manual)
-- 🔌 **teamscale-mcp** on `:8081` (per-request identity, the data)
-- 🧩 **The plugin** on top, optional (code workflows for developers)
-
-<br>
-
-> Point any MCP client at both URLs. You get explain-and-act for everyone, and code
-> editing for the devs who also want the plugin.
-
----
-
 <!-- _class: lead -->
 <!-- _paginate: false -->
 
@@ -526,6 +449,57 @@ Sidecars next to Teamscale. Pick the pieces per audience:
 <!-- _paginate: false -->
 
 # Backup
+
+---
+
+## Configured entirely by **env vars**
+
+```yaml
+teamscale-mcp:
+  
+  image: registry.gitlab.com/cqse/internal/teamscale-mcp:latest
+  ports: ["8081:8081"]                    # serving: MCP_HOST / _PORT / _PATH, MCP_ALLOWED_HOSTS
+  environment:
+    
+    # Connection + bootstrap creds (used once, at startup, to fetch the spec)
+    TEAMSCALE_SERVER_URL: http://teamscale:8080
+    TEAMSCALE_SPEC_USER:  some-technical-user
+    TEAMSCALE_SPEC_TOKEN: some-technical-user-api-token
+    TEAMSCALE_INCLUDE_INTERNAL: "false"
+    
+    # Tool surface: trim to a sharp, read-oriented set (blocklist recommended)
+    TEAMSCALE_EXCLUDE_TAGS: "Backup,System,Users,Profilers,SAP,…"
+    TEAMSCALE_EXCLUDE_METHODS: "DELETE,PUT,PATCH"
+    # TEAMSCALE_INCLUDE_TAGS:  "Findings,Metrics,Test Gap Analysis"
+    # TEAMSCALE_INCLUDE_NAMES: "createBaseline"
+```
+
+<br>
+
+> Per-request identity arrives in the `X-Teamscale-User` / `-Token` headers, never from the environment.
+
+---
+
+## Configured by a single **env var**
+
+```yaml
+teamscale-docs-mcp:
+
+  image: registry.gitlab.com/cqse/internal/teamscale-docs-mcp:latest
+  ports: ["8082:8082"]                    # serving: MCP_HOST / _PORT / _PATH, MCP_ALLOWED_HOSTS
+  environment:
+
+    # The only real setting: where the docs live. Point at the instance's
+    # version-matched bundled docs, so no request leaves the network …
+    DOCS_BASE_URL: http://teamscale:8080/documentation
+    
+    # … or serve the public site instead:
+    # DOCS_BASE_URL: https://docs.teamscale.com
+```
+
+<br>
+
+> No credentials, no headers: the docs are public content, so there is nothing to authenticate.
 
 ---
 
