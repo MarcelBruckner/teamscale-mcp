@@ -115,6 +115,21 @@ gitlab.com/cqse/internal/**teamscale-mcp** · **teamscale-docs-mcp**
 
 ---
 
+<!-- _class: lead -->
+
+## ⚠️ Prototype
+
+# This is only a **prototype**
+
+*Built to demonstrate the **value** of the MCPs, not production-ready code.*
+
+<br>
+
+> Expect rough edges. The point is to show what these MCPs make possible,
+> not to ship a finished product.
+
+---
+
 ## Three pieces, three jobs
 
 
