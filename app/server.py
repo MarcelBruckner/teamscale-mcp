@@ -387,17 +387,30 @@ def build_server(
         )
         spec = fetch_spec(server_url, user, token, include_internal)
 
+    mode = auth_mode()
+    # The outgoing auth depends on the mode: forward the client's OAuth JWT
+    # (oauth) or assemble HTTP Basic from the X-Teamscale-* headers (headers).
+    outgoing_auth = (
+        TeamscaleBearerAuth() if mode == AUTH_MODE_OAUTH else TeamscaleBasicAuth()
+    )
+
     if client is None:
         # Teamscale spec paths are absolute (they embed the version), so the
         # base_url is the bare server URL with no path suffix.
         client = httpx.AsyncClient(
-            base_url=server_url, auth=TeamscaleBasicAuth(), timeout=60
+            base_url=server_url, auth=outgoing_auth, timeout=60
         )
+    else:
+        # Test-injected client: still wire it to the mode-appropriate auth so
+        # tests can assert on client.auth without constructing a fresh client.
+        client.auth = outgoing_auth
 
     mcp = FastMCP.from_openapi(
         openapi_spec=spec,
         client=client,
         name="Teamscale MCP",
+        # In oauth mode this installs FastMCP's OAuth/OIDC auth; None in headers mode.
+        auth=build_auth(),
         # The live API returns null for fields the spec types as plain strings,
         # so output validation would reject otherwise-successful calls.
         validate_output=False,
@@ -453,13 +466,16 @@ def build_error_server(error: BaseException) -> FastMCP:
     return mcp
 
 
-def serve(mcp: FastMCP) -> None:
-    """Serve an MCP server over streamable HTTP behind the token-capture
-    middleware, using the MCP_* environment configuration."""
-    host = os.environ.get(MCP_HOST_ENV, DEFAULT_HOST)
-    port = int(os.environ.get(MCP_PORT_ENV, DEFAULT_PORT))
-    path = os.environ.get(MCP_PATH_ENV, DEFAULT_PATH)
+def build_asgi_app(mcp: FastMCP):
+    """Build the ASGI app for the current auth mode.
 
+    headers mode: wrap FastMCP's http_app in TokenCaptureMiddleware, which requires
+    and captures the X-Teamscale-* identity headers. oauth mode: return http_app
+    unwrapped -- FastMCP's own auth middleware validates the bearer and emits the
+    spec-correct 401 + Protected-Resource-Metadata. /health stays unauthenticated in
+    both modes.
+    """
+    path = os.environ.get(MCP_PATH_ENV, DEFAULT_PATH)
     allowed = os.environ.get(MCP_ALLOWED_HOSTS_ENV, "").strip()
     if allowed:
         hosts = [h.strip() for h in allowed.split(",") if h.strip()]
@@ -470,10 +486,26 @@ def serve(mcp: FastMCP) -> None:
         inner = mcp.http_app(path=path, host_origin_protection=False)
         print(f"Host protection OFF (any Host accepted) -- set "
               f"{MCP_ALLOWED_HOSTS_ENV} to restrict.", file=sys.stderr)
-    app = TokenCaptureMiddleware(inner)
 
-    print(f"Serving Teamscale MCP on http://{host}:{port}{path} "
-          f"(client supplies X-Teamscale-User / X-Teamscale-Token headers)",
+    if auth_mode() == AUTH_MODE_OAUTH:
+        return inner
+    return TokenCaptureMiddleware(inner)
+
+
+def serve(mcp: FastMCP) -> None:
+    """Serve an MCP server over streamable HTTP using the MCP_* env configuration."""
+    host = os.environ.get(MCP_HOST_ENV, DEFAULT_HOST)
+    port = int(os.environ.get(MCP_PORT_ENV, DEFAULT_PORT))
+    path = os.environ.get(MCP_PATH_ENV, DEFAULT_PATH)
+
+    app = build_asgi_app(mcp)
+
+    identity = (
+        "client completes the OAuth flow (Bearer token)"
+        if auth_mode() == AUTH_MODE_OAUTH
+        else "client supplies X-Teamscale-User / X-Teamscale-Token headers"
+    )
+    print(f"Serving Teamscale MCP on http://{host}:{port}{path} ({identity})",
           file=sys.stderr)
     uvicorn.run(app, host=host, port=port)
 

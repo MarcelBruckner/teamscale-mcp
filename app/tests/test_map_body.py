@@ -17,7 +17,7 @@ import json
 import httpx
 from fastmcp import Client
 
-from server import build_server
+from server import _incoming_token, _incoming_user, build_server
 
 MAP_BODY_SPEC = {
     "openapi": "3.0.1",
@@ -74,6 +74,11 @@ def _capturing_client(captured: dict) -> httpx.AsyncClient:
 
 
 async def test_map_body_is_forwarded_unwrapped():
+    # build_server() wires TeamscaleBasicAuth onto the outgoing client (headers
+    # mode), which reads these contextvars on every call -- normally populated
+    # per-request by TokenCaptureMiddleware.
+    _incoming_user.set("admin")
+    _incoming_token.set("tok")
     captured: dict = {}
     mcp = build_server(client=_capturing_client(captured), spec=MAP_BODY_SPEC)
     async with Client(mcp) as client:
@@ -86,6 +91,8 @@ async def test_map_body_is_forwarded_unwrapped():
 
 
 async def test_empty_map_body_is_forwarded_unwrapped():
+    _incoming_user.set("admin")
+    _incoming_token.set("tok")
     captured: dict = {}
     mcp = build_server(client=_capturing_client(captured), spec=MAP_BODY_SPEC)
     async with Client(mcp) as client:
