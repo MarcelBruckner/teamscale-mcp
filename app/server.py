@@ -8,6 +8,7 @@ from contextvars import ContextVar
 import httpx
 import uvicorn
 from fastmcp import FastMCP
+from fastmcp.server.auth.oidc_proxy import OIDCProxy
 from fastmcp.server.providers.openapi import MCPType, RouteMap
 from fastmcp.utilities.openapi import HTTPRoute
 from starlette.requests import Request
@@ -188,6 +189,16 @@ EXCLUDE_METHODS_ENV = "TEAMSCALE_EXCLUDE_METHODS"
 INCLUDE_NAMES_ENV = "TEAMSCALE_INCLUDE_NAMES"
 EXCLUDE_NAMES_ENV = "TEAMSCALE_EXCLUDE_NAMES"
 
+AUTH_MODE_ENV = "TEAMSCALE_AUTH_MODE"
+OIDC_CONFIG_URL_ENV = "TEAMSCALE_OIDC_CONFIG_URL"
+OIDC_CLIENT_ID_ENV = "TEAMSCALE_OIDC_CLIENT_ID"
+OIDC_CLIENT_SECRET_ENV = "TEAMSCALE_OIDC_CLIENT_SECRET"
+OIDC_AUDIENCE_ENV = "TEAMSCALE_OIDC_AUDIENCE"
+MCP_BASE_URL_ENV = "MCP_BASE_URL"
+
+AUTH_MODE_HEADERS = "headers"
+AUTH_MODE_OAUTH = "oauth"
+
 DEFAULT_SERVER_URL = "http://teamscale:8080"
 
 _TRUE_VALUES = {"1", "true", "yes", "on"}
@@ -200,6 +211,54 @@ def env_set(name: str) -> set[str]:
     """
     raw = os.environ.get(name, "").strip()
     return {t.strip() for t in raw.split(",") if t.strip()}
+
+
+def auth_mode() -> str:
+    """Return the configured client-auth mode: 'headers' (default) or 'oauth'.
+
+    'headers' keeps the legacy X-Teamscale-User/Token -> HTTP Basic pass-through.
+    'oauth' turns on the standard MCP OAuth flow (OIDCProxy + JWT forwarding).
+    """
+    mode = os.environ.get(AUTH_MODE_ENV, AUTH_MODE_HEADERS).strip().lower()
+    if mode not in (AUTH_MODE_HEADERS, AUTH_MODE_OAUTH):
+        raise RuntimeError(
+            f"{AUTH_MODE_ENV} must be '{AUTH_MODE_HEADERS}' or '{AUTH_MODE_OAUTH}', "
+            f"got '{mode}'."
+        )
+    return mode
+
+
+def build_auth() -> OIDCProxy | None:
+    """Build the FastMCP server auth provider for the current mode.
+
+    Returns None in headers mode (FastMCP auth off; TokenCaptureMiddleware gates).
+    In oauth mode returns an OIDCProxy wired from env. verify_id_token is left False
+    so the *access* token (the one forwarded to Teamscale) is what gets validated.
+    NOTE: constructing OIDCProxy performs an OIDC discovery request against
+    TEAMSCALE_OIDC_CONFIG_URL.
+    """
+    if auth_mode() != AUTH_MODE_OAUTH:
+        return None
+    required = {
+        OIDC_CONFIG_URL_ENV: os.environ.get(OIDC_CONFIG_URL_ENV),
+        OIDC_CLIENT_ID_ENV: os.environ.get(OIDC_CLIENT_ID_ENV),
+        OIDC_CLIENT_SECRET_ENV: os.environ.get(OIDC_CLIENT_SECRET_ENV),
+        MCP_BASE_URL_ENV: os.environ.get(MCP_BASE_URL_ENV),
+    }
+    missing = sorted(name for name, val in required.items() if not val)
+    if missing:
+        raise RuntimeError(
+            f"{AUTH_MODE_ENV}={AUTH_MODE_OAUTH} requires these env vars: "
+            f"{', '.join(missing)}."
+        )
+    return OIDCProxy(
+        config_url=required[OIDC_CONFIG_URL_ENV],
+        client_id=required[OIDC_CLIENT_ID_ENV],
+        client_secret=required[OIDC_CLIENT_SECRET_ENV],
+        audience=os.environ.get(OIDC_AUDIENCE_ENV) or None,
+        base_url=required[MCP_BASE_URL_ENV],
+        verify_id_token=False,
+    )
 
 
 def build_route_maps(
