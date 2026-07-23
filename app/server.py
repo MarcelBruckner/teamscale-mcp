@@ -9,6 +9,7 @@ import httpx
 import uvicorn
 from fastmcp import FastMCP
 from fastmcp.server.auth.oidc_proxy import OIDCProxy
+from fastmcp.server.dependencies import get_access_token
 from fastmcp.server.providers.openapi import MCPType, RouteMap
 from fastmcp.utilities.openapi import HTTPRoute
 from starlette.requests import Request
@@ -39,6 +40,27 @@ class TeamscaleBasicAuth(httpx.Auth):
             )
         raw = base64.b64encode(f"{user}:{token}".encode()).decode()
         request.headers["Authorization"] = f"Basic {raw}"
+        yield request
+
+
+class TeamscaleBearerAuth(httpx.Auth):
+    """Forward the OAuth-authenticated user's UPSTREAM access token to Teamscale.
+
+    Used in oauth mode. FastMCP's OIDCProxy validates the client's reference token
+    and swaps it for the upstream IdP token, exposed here via get_access_token().token.
+    Teamscale then validates that JWT itself (bearer-token mode: signature + username
+    claim). We must forward THIS token, not the raw /mcp Authorization header (which
+    carries FastMCP's non-forwardable reference JWT).
+    """
+
+    def auth_flow(self, request: httpx.Request):
+        token = get_access_token()
+        if token is None or not getattr(token, "token", None):
+            raise RuntimeError(
+                "No authenticated access token available for the Teamscale call "
+                "(oauth mode)."
+            )
+        request.headers["Authorization"] = f"Bearer {token.token}"
         yield request
 
 
