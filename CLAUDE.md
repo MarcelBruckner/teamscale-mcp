@@ -132,6 +132,36 @@ Two tiers of credentials are in play:
 Validity is enforced by Teamscale when the forwarded request arrives — this server
 never validates the credentials itself.
 
+The above is **`headers` mode**, the default and the only mode described so far. A
+second mode, **`oauth`** (`TEAMSCALE_AUTH_MODE=oauth`), replaces steps 2 with a
+standard MCP OAuth flow instead of client-supplied headers:
+
+The server advertises the standard MCP OAuth flow via FastMCP's `OIDCProxy` (built in
+`build_auth()`), proxying login to a generic OIDC issuer reached via
+`TEAMSCALE_OIDC_CONFIG_URL` discovery. `OIDCProxy` issues the MCP client its own
+reference JWT and stores the upstream IdP token; on each tool call
+`get_access_token().token` yields the **upstream** access token, not the raw `/mcp`
+`Authorization` header (that carries FastMCP's own non-forwardable reference JWT).
+`TeamscaleBearerAuth` forwards that upstream token as `Authorization: Bearer` on the
+outgoing Teamscale call. Teamscale validates the JWT itself, in its
+Authentication-Proxy / Bearer-Token mode (configured JWKS + username claim) — this
+server still validates nothing. In oauth mode `TokenCaptureMiddleware` is not used at
+all; FastMCP's own auth middleware gates the `/mcp` path and emits the
+spec-correct `401` + `WWW-Authenticate` / Protected-Resource-Metadata. `/health`
+stays unauthenticated in both modes.
+
+**Deployment prerequisites for oauth mode (not code in this repo):**
+
+1. Register an OAuth app in the IdP and set `TEAMSCALE_OIDC_CONFIG_URL`,
+   `TEAMSCALE_OIDC_CLIENT_ID`, `TEAMSCALE_OIDC_CLIENT_SECRET`, optionally
+   `TEAMSCALE_OIDC_AUDIENCE`, and `MCP_BASE_URL` (the externally reachable base URL
+   this server is deployed at, used for the OAuth redirect).
+2. Configure the IdP to mint **JWT** access tokens for that app, not opaque tokens —
+   Teamscale's bearer-token validation needs a JWT it can verify against a JWKS.
+3. Configure Teamscale's own Authentication-Proxy / Bearer-Token mode with the IdP's
+   JWKS (public key) and the username claim, so IdP usernames map to Teamscale
+   usernames. This is Teamscale-side configuration; nothing in this repo does it.
+
 ### Startup resilience
 
 If the OpenAPI spec can't be downloaded or parsed, `main()` falls back to
@@ -148,6 +178,13 @@ sidecar: `TEAMSCALE_SERVER_URL`, `TEAMSCALE_SPEC_USER`, `TEAMSCALE_SPEC_TOKEN`,
 `MCP_HOST`, `MCP_PORT`, `MCP_PATH`, `MCP_ALLOWED_HOSTS`. Host protection
 (DNS-rebinding) is **off by default** (any Host accepted; the client identity headers
 are the real gate) and only restricts when `MCP_ALLOWED_HOSTS` is set.
+
+Auth-mode selection and its oauth-only vars (see the "auth model" section above for
+what they do): `TEAMSCALE_AUTH_MODE` (`headers` default, or `oauth`),
+`TEAMSCALE_OIDC_CONFIG_URL`, `TEAMSCALE_OIDC_CLIENT_ID`, `TEAMSCALE_OIDC_CLIENT_SECRET`,
+`TEAMSCALE_OIDC_AUDIENCE`, `MCP_BASE_URL`. The last five are required only when
+`TEAMSCALE_AUTH_MODE=oauth`; `build_auth()` raises at startup if any but
+`TEAMSCALE_OIDC_AUDIENCE` (optional) is missing in that mode.
 
 ## Dev fixture credentials
 

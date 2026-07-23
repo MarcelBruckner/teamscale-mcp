@@ -25,6 +25,7 @@ client connects to it by URL.
 - [Quick start](#quick-start)
 - [Connecting a client](#connecting-a-client)
 - [Configuration](#configuration)
+  - [Auth mode: OAuth](#auth-mode-oauth)
   - [Trimming the tool surface](#trimming-the-tool-surface)
 - [TLS / reverse proxy](#tls--reverse-proxy)
 - [Security](#security)
@@ -197,6 +198,37 @@ All configuration is via environment variables:
 | `MCP_PORT`                   | `8081`                  | Port the MCP server listens on.                                                                          |
 | `MCP_PATH`                   | `/mcp`                  | HTTP path the MCP endpoint is served at.                                                                 |
 | `MCP_ALLOWED_HOSTS`          | *(unset = any)*         | Comma-separated `Host` allowlist (DNS-rebinding protection). Unset accepts any Host; set it to restrict. |
+| `TEAMSCALE_AUTH_MODE`        | `headers`               | `headers` (default, described above) or `oauth` — see [Auth mode: OAuth](#auth-mode-oauth) below. |
+| `TEAMSCALE_OIDC_CONFIG_URL`  | *(required if `oauth`)* | OIDC discovery URL of your identity provider.                                                            |
+| `TEAMSCALE_OIDC_CLIENT_ID`   | *(required if `oauth`)* | OAuth client ID registered with the IdP for this server.                                                 |
+| `TEAMSCALE_OIDC_CLIENT_SECRET` | *(required if `oauth`)* | OAuth client secret for that registration.                                                             |
+| `TEAMSCALE_OIDC_AUDIENCE`    | *(unset)*               | Optional expected audience for the issued token; unset if the IdP doesn't need one.                      |
+| `MCP_BASE_URL`               | *(required if `oauth`)* | Externally reachable base URL of this server, used for the OAuth redirect.                               |
+
+### Auth mode: OAuth
+
+By default (`TEAMSCALE_AUTH_MODE=headers`, see [How it works](#how-it-works) and
+[Security](#security)) each client presents its own Teamscale username + API token as
+headers. Setting `TEAMSCALE_AUTH_MODE=oauth` switches to the standard **MCP OAuth**
+flow instead: the server advertises OAuth via FastMCP's `OIDCProxy`, proxying login to
+a generic OIDC issuer (`TEAMSCALE_OIDC_CONFIG_URL`). The client does a browser login
+against your IdP; FastMCP mints the client its own reference token and keeps the
+**upstream** IdP access token server-side. On every tool call, that upstream token
+(not the client-facing reference token) is forwarded to Teamscale as
+`Authorization: Bearer`, and Teamscale validates it itself via its
+Authentication-Proxy / Bearer-Token mode.
+
+This mode needs setup **outside this repo** before it works:
+
+1. Register an OAuth app in your IdP and set `TEAMSCALE_OIDC_CONFIG_URL`,
+   `TEAMSCALE_OIDC_CLIENT_ID`, `TEAMSCALE_OIDC_CLIENT_SECRET`, optionally
+   `TEAMSCALE_OIDC_AUDIENCE`, and `MCP_BASE_URL`.
+2. Configure the IdP to issue **JWT** access tokens for that app (not opaque tokens) —
+   Teamscale needs to verify the token's signature itself.
+3. Configure Teamscale's Authentication-Proxy / Bearer-Token mode with the IdP's JWKS
+   and username claim, so IdP usernames resolve to Teamscale usernames.
+
+`/health` stays unauthenticated in both modes.
 
 ### Trimming the tool surface
 
@@ -327,6 +359,10 @@ client to `https://teamscale.example.com/mcp` with the two identity headers (see
 if you enable it, add the domain to `MCP_ALLOWED_HOSTS`.
 
 ## Security
+
+This section describes the default `TEAMSCALE_AUTH_MODE=headers` mode. An
+alternative `oauth` mode swaps step 2 below for a standard MCP OAuth login against
+your IdP instead — see [Auth mode: OAuth](#auth-mode-oauth).
 
 Access is **two-tier**:
 
