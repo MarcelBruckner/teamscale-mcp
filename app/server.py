@@ -400,9 +400,9 @@ def build_server(
         client = httpx.AsyncClient(
             base_url=server_url, auth=outgoing_auth, timeout=60
         )
-    else:
-        # Test-injected client: still wire it to the mode-appropriate auth so
-        # tests can assert on client.auth without constructing a fresh client.
+    elif client.auth is None:
+        # An injected client (tests only today) receives the mode-appropriate
+        # auth, but a caller that pre-configured its own auth is left untouched.
         client.auth = outgoing_auth
 
     mcp = FastMCP.from_openapi(
@@ -466,7 +466,7 @@ def build_error_server(error: BaseException) -> FastMCP:
     return mcp
 
 
-def build_asgi_app(mcp: FastMCP):
+def build_asgi_app(mcp: FastMCP) -> object:
     """Build the ASGI app for the current auth mode.
 
     headers mode: wrap FastMCP's http_app in TokenCaptureMiddleware, which requires

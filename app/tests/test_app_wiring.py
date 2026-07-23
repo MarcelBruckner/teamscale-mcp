@@ -64,3 +64,12 @@ def test_oauth_mode_uses_bearer_auth_and_no_wrapping(monkeypatch):
     mcp.auth = None
     app = build_asgi_app(mcp)
     assert not isinstance(app, TokenCaptureMiddleware)
+
+
+def test_injected_client_with_existing_auth_is_not_overwritten(monkeypatch):
+    monkeypatch.delenv(AUTH_MODE_ENV, raising=False)
+    preset = TeamscaleBasicAuth()
+    client = _client()
+    client.auth = preset
+    build_server(client=client, spec=FAKE_SPEC)
+    assert client.auth is preset
