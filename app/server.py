@@ -508,11 +508,12 @@ def serve(mcp: FastMCP, *, force_token_gate: bool = False) -> None:
 
     app = build_asgi_app(mcp, force_token_gate=force_token_gate)
 
-    identity = (
-        "client completes the OAuth flow (Bearer token)"
-        if auth_mode() == AUTH_MODE_OAUTH
-        else "client supplies X-Teamscale-User / X-Teamscale-Token headers"
-    )
+    # force_token_gate means we fell back to the header gate regardless of mode
+    # (the startup error server), so report that rather than the OAuth flow.
+    if auth_mode() == AUTH_MODE_OAUTH and not force_token_gate:
+        identity = "client completes the OAuth flow (Bearer token)"
+    else:
+        identity = "client supplies X-Teamscale-User / X-Teamscale-Token headers"
     print(f"Serving Teamscale MCP on http://{host}:{port}{path} ({identity})",
           file=sys.stderr)
     uvicorn.run(app, host=host, port=port)
