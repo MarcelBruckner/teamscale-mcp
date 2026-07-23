@@ -466,7 +466,7 @@ def build_error_server(error: BaseException) -> FastMCP:
     return mcp
 
 
-def build_asgi_app(mcp: FastMCP) -> object:
+def build_asgi_app(mcp: FastMCP, *, force_token_gate: bool = False) -> object:
     """Build the ASGI app for the current auth mode.
 
     headers mode: wrap FastMCP's http_app in TokenCaptureMiddleware, which requires
@@ -474,6 +474,14 @@ def build_asgi_app(mcp: FastMCP) -> object:
     unwrapped -- FastMCP's own auth middleware validates the bearer and emits the
     spec-correct 401 + Protected-Resource-Metadata. /health stays unauthenticated in
     both modes.
+
+    `force_token_gate=True` overrides the oauth-mode no-wrap behavior and always
+    applies TokenCaptureMiddleware. This is for `build_error_server`'s stand-in:
+    when startup itself failed, that server's own OAuth provider was never built
+    (mcp.auth is None, so FastMCP installs no auth middleware), which would
+    otherwise leave the error server -- and the full traceback its `startup_error`
+    tool returns -- reachable unauthenticated in oauth mode. Header-gating it is
+    the only auth we can still apply.
     """
     path = os.environ.get(MCP_PATH_ENV, DEFAULT_PATH)
     allowed = os.environ.get(MCP_ALLOWED_HOSTS_ENV, "").strip()
@@ -487,18 +495,18 @@ def build_asgi_app(mcp: FastMCP) -> object:
         print(f"Host protection OFF (any Host accepted) -- set "
               f"{MCP_ALLOWED_HOSTS_ENV} to restrict.", file=sys.stderr)
 
-    if auth_mode() == AUTH_MODE_OAUTH:
+    if not force_token_gate and auth_mode() == AUTH_MODE_OAUTH:
         return inner
     return TokenCaptureMiddleware(inner)
 
 
-def serve(mcp: FastMCP) -> None:
+def serve(mcp: FastMCP, *, force_token_gate: bool = False) -> None:
     """Serve an MCP server over streamable HTTP using the MCP_* env configuration."""
     host = os.environ.get(MCP_HOST_ENV, DEFAULT_HOST)
     port = int(os.environ.get(MCP_PORT_ENV, DEFAULT_PORT))
     path = os.environ.get(MCP_PATH_ENV, DEFAULT_PATH)
 
-    app = build_asgi_app(mcp)
+    app = build_asgi_app(mcp, force_token_gate=force_token_gate)
 
     identity = (
         "client completes the OAuth flow (Bearer token)"
@@ -515,7 +523,8 @@ def main():
         mcp = build_server()
     except Exception as e:
         print(f"Error: failed to build Teamscale MCP server: {e}", file=sys.stderr)
-        mcp = build_error_server(e)
+        serve(build_error_server(e), force_token_gate=True)
+        return
     serve(mcp)
 
 

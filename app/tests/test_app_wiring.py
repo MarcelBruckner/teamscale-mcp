@@ -73,3 +73,23 @@ def test_injected_client_with_existing_auth_is_not_overwritten(monkeypatch):
     client.auth = preset
     build_server(client=client, spec=FAKE_SPEC)
     assert client.auth is preset
+
+
+def test_error_server_force_token_gate_wraps_in_oauth_mode(monkeypatch):
+    monkeypatch.setenv(AUTH_MODE_ENV, "oauth")
+
+    from server import build_error_server
+
+    mcp = build_error_server(RuntimeError("boom"))
+    app = build_asgi_app(mcp, force_token_gate=True)
+    assert isinstance(app, TokenCaptureMiddleware)
+
+
+def test_build_asgi_app_oauth_unwrapped_without_force(monkeypatch):
+    monkeypatch.setenv(AUTH_MODE_ENV, "oauth")
+    monkeypatch.setattr(server, "build_auth", lambda: None)
+
+    client = _client()
+    mcp = build_server(client=client, spec=FAKE_SPEC)
+    app = build_asgi_app(mcp)
+    assert not isinstance(app, TokenCaptureMiddleware)
