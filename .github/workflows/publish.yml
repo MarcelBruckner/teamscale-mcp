@@ -6,6 +6,12 @@ name: Publish image
 on:
   push:
     branches: [main]
+    # Docs-only changes don't affect the image, so skip the (multi-arch) build.
+    # A push that also touches any non-doc file still builds. `v*` tags and manual
+    # runs always build regardless of paths.
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
     tags: ["v*"]
   workflow_dispatch:
 
